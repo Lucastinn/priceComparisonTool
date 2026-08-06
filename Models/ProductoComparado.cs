@@ -9,10 +9,11 @@ namespace ComparadorPrecios.Models
         public string NombreNormalizado { get; set; }
         public string Tamaño { get; set; }
         
-        // Usamos un diccionario para manejar de qué proveedor viene qué precio
         public Dictionary<string, decimal> PreciosPorProveedor { get; set; } = new Dictionary<string, decimal>();
+        
+        // NUEVO: Diccionario para guardar el precio por bulto cerrado
+        public Dictionary<string, decimal> PreciosBultoPorProveedor { get; set; } = new Dictionary<string, decimal>();
 
-        // Lógica encapsulada para obtener el mejor precio
         public string ObtenerProveedorMasBarato()
         {
             if (PreciosPorProveedor.Count == 0) return "N/A";
