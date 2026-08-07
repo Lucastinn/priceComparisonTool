@@ -11,6 +11,10 @@ namespace ComparadorPrecios
     public partial class Form1 : Form
     {
         // Controles visuales
+        private TextBox txtNombreProv1;
+        private TextBox txtNombreProv2;
+        private TextBox txtNombreProv3;
+        private ProgressBar barraCarga;
         private Button btnCargarA;
         private Button btnCargarB;
         private Button btnCargarC;
@@ -25,6 +29,11 @@ namespace ComparadorPrecios
         private TextNormalizer normalizer = new TextNormalizer();
         private List<ProductoComparado> catalogoMaestro = new List<ProductoComparado>();
 
+        // Guardamos los nombres actuales para usarlos en el buscador sin perderlos
+        private string nombreProvA = "Prov A";
+        private string nombreProvB = "Prov B";
+        private string nombreProvC = "Prov C";
+
         public Form1()
         {
             ConfigurarInterfazGrafica();
@@ -33,44 +42,51 @@ namespace ComparadorPrecios
         private void ConfigurarInterfazGrafica()
         {
             this.Text = "Comparador de Precios Inteligente";
-            this.Size = new Size(850, 600);
+            this.Size = new Size(850, 650); // Un poquito más alto para que entre todo bien
             this.StartPosition = FormStartPosition.CenterScreen;
 
-            // Dibujar botones
-            btnCargarA = new Button() { Text = "Excel Prov A", Location = new Point(20, 20), Width = 120 };
-            btnCargarB = new Button() { Text = "Excel Prov B", Location = new Point(150, 20), Width = 120 };
-            btnCargarC = new Button() { Text = "Excel Prov C", Location = new Point(280, 20), Width = 120 };
-            btnComparar = new Button() { Text = "COMPARAR", Location = new Point(420, 20), Width = 120, BackColor = Color.LightBlue, Font = new Font("Arial", 9, FontStyle.Bold) };
-    
-            lblEstado = new Label() { Text = "Esperando archivos...", Location = new Point(560, 25), Width = 250, ForeColor = Color.Gray };
+            // 1. Cajas de texto para los nombres de los proveedores
+            txtNombreProv1 = new TextBox() { Location = new Point(20, 20), Width = 120, PlaceholderText = "Nombre Mayorista 1" };
+            txtNombreProv2 = new TextBox() { Location = new Point(150, 20), Width = 120, PlaceholderText = "Nombre Mayorista 2" };
+            txtNombreProv3 = new TextBox() { Location = new Point(280, 20), Width = 120, PlaceholderText = "Nombre Mayorista 3" };
 
-            // Instanciar el buscador
-            txtBuscar = new TextBox() 
-            { 
-                Location = new Point(20, 55), 
+            // 2. Botones de carga (los bajamos un poquito)
+            btnCargarA = new Button() { Text = "Excel 1", Location = new Point(20, 45), Width = 120 };
+            btnCargarB = new Button() { Text = "Excel 2", Location = new Point(150, 45), Width = 120 };
+            btnCargarC = new Button() { Text = "Excel 3", Location = new Point(280, 45), Width = 120 };
+
+            // Botón comparar más grande
+            btnComparar = new Button() { Text = "COMPARAR", Location = new Point(420, 20), Width = 120, Height = 48, BackColor = Color.LightBlue, Font = new Font("Arial", 9, FontStyle.Bold) };
+
+            // 3. Barra de carga (oculta al inicio)
+            barraCarga = new ProgressBar() { Location = new Point(560, 20), Width = 250, Height = 18, Style = ProgressBarStyle.Marquee, Visible = false };
+
+            lblEstado = new Label() { Text = "Esperando archivos...", Location = new Point(560, 45), Width = 250, ForeColor = Color.Gray };
+
+            // Buscador (lo bajamos un poco también)
+            txtBuscar = new TextBox()
+            {
+                Location = new Point(20, 80),
                 Width = 380,
                 PlaceholderText = "Escribí para buscar un producto..."
             };
             txtBuscar.TextChanged += (s, e) => CargarGrilla(txtBuscar.Text);
 
-            // Eventos de los botones
-            btnCargarA.Click += (s, e) => { rutaProvA = SeleccionarArchivo("Proveedor A"); ActualizarEstado(); };
-            btnCargarB.Click += (s, e) => { rutaProvB = SeleccionarArchivo("Proveedor B"); ActualizarEstado(); };
-            btnCargarC.Click += (s, e) => { rutaProvC = SeleccionarArchivo("Proveedor C"); ActualizarEstado(); };
+            // Eventos
+            btnCargarA.Click += (s, e) => { rutaProvA = SeleccionarArchivo(txtNombreProv1.Text != "" ? txtNombreProv1.Text : "Proveedor 1"); ActualizarEstado(); };
+            btnCargarB.Click += (s, e) => { rutaProvB = SeleccionarArchivo(txtNombreProv2.Text != "" ? txtNombreProv2.Text : "Proveedor 2"); ActualizarEstado(); };
+            btnCargarC.Click += (s, e) => { rutaProvC = SeleccionarArchivo(txtNombreProv3.Text != "" ? txtNombreProv3.Text : "Proveedor 3"); ActualizarEstado(); };
             btnComparar.Click += BtnComparar_Click;
 
-            // Dibujar la tabla
+            // Tabla
             dgvResultados = new DataGridView()
             {
-                Location = new Point(20, 85),
-                Size = new Size(790, 440),
-        
-                // ACÁ ESTÁ LA MAGIA: Le decimos que se ancle a los 4 lados de la ventana
+                Location = new Point(20, 110),
+                Size = new Size(790, 480),
                 Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right,
-        
                 AllowUserToAddRows = false,
                 ReadOnly = true,
-                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None, 
+                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None,
                 RowHeadersVisible = false,
                 SelectionMode = DataGridViewSelectionMode.FullRowSelect,
                 BackgroundColor = Color.WhiteSmoke
@@ -78,6 +94,10 @@ namespace ComparadorPrecios
             dgvResultados.CellFormatting += DgvResultados_CellFormatting;
 
             // Agregar todo a la ventana
+            this.Controls.Add(txtNombreProv1);
+            this.Controls.Add(txtNombreProv2);
+            this.Controls.Add(txtNombreProv3);
+            this.Controls.Add(barraCarga);
             this.Controls.Add(btnCargarA);
             this.Controls.Add(btnCargarB);
             this.Controls.Add(btnCargarC);
@@ -85,7 +105,7 @@ namespace ComparadorPrecios
             this.Controls.Add(lblEstado);
             this.Controls.Add(txtBuscar);
             this.Controls.Add(dgvResultados);
-}
+        }
 
         private string SeleccionarArchivo(string nombreProveedor)
         {
@@ -105,7 +125,7 @@ namespace ComparadorPrecios
             if (rutaProvA != null) cargados++;
             if (rutaProvB != null) cargados++;
             if (rutaProvC != null) cargados++;
-            
+
             lblEstado.Text = $"Archivos cargados: {cargados} de 3";
             lblEstado.ForeColor = cargados > 1 ? Color.Green : Color.Gray;
         }
@@ -118,17 +138,24 @@ namespace ComparadorPrecios
                 return;
             }
 
+            // Guardamos los nombres que escribió el usuario (o un valor por defecto)
+            nombreProvA = string.IsNullOrWhiteSpace(txtNombreProv1.Text) ? "Proveedor 1" : txtNombreProv1.Text;
+            nombreProvB = string.IsNullOrWhiteSpace(txtNombreProv2.Text) ? "Proveedor 2" : txtNombreProv2.Text;
+            nombreProvC = string.IsNullOrWhiteSpace(txtNombreProv3.Text) ? "Proveedor 3" : txtNombreProv3.Text;
+
+            // UI Estado de carga
             btnComparar.Text = "Procesando...";
             btnComparar.Enabled = false;
+            barraCarga.Visible = true; // Mostramos la barra
             catalogoMaestro.Clear();
 
             try
             {
                 await Task.Run(() =>
                 {
-                    if (!string.IsNullOrEmpty(rutaProvA)) ProcesarProveedor(rutaProvA, "Prov A");
-                    if (!string.IsNullOrEmpty(rutaProvB)) ProcesarProveedor(rutaProvB, "Prov B");
-                    if (!string.IsNullOrEmpty(rutaProvC)) ProcesarProveedor(rutaProvC, "Prov C");
+                    if (!string.IsNullOrEmpty(rutaProvA)) ProcesarProveedor(rutaProvA, nombreProvA);
+                    if (!string.IsNullOrEmpty(rutaProvB)) ProcesarProveedor(rutaProvB, nombreProvB);
+                    if (!string.IsNullOrEmpty(rutaProvC)) ProcesarProveedor(rutaProvC, nombreProvC);
                 });
 
                 CargarGrilla();
@@ -141,6 +168,7 @@ namespace ComparadorPrecios
             {
                 btnComparar.Text = "COMPARAR";
                 btnComparar.Enabled = true;
+                barraCarga.Visible = false; // Ocultamos la barra al terminar
             }
         }
 
@@ -149,18 +177,15 @@ namespace ComparadorPrecios
             var items = excelService.LeerCatalogo(ruta);
             foreach (var item in items)
             {
-                // Extraemos las palabras UNA SOLA VEZ
                 string[] palabrasNuevas = normalizer.ExtraerPalabrasClave(item.Nombre);
                 string tamaño = normalizer.ExtraerTamaño(item.Nombre);
                 string nombreLimpio = normalizer.LimpiarNombre(item.Nombre);
 
-                // Comparamos usando la memoria rápida
                 var existente = catalogoMaestro.Find(p => normalizer.SonMismoProducto(p.PalabrasClave, palabrasNuevas));
 
                 if (existente != null)
                 {
                     existente.PreciosPorProveedor[nombreProveedor] = item.Precio;
-                    if (item.PrecioBulto > 0) existente.PreciosBultoPorProveedor[nombreProveedor] = item.PrecioBulto;
                 }
                 else
                 {
@@ -169,10 +194,9 @@ namespace ComparadorPrecios
                         NombreOriginal = item.Nombre,
                         NombreNormalizado = nombreLimpio,
                         Tamaño = tamaño,
-                        PalabrasClave = palabrasNuevas // Lo guardamos para el futuro
+                        PalabrasClave = palabrasNuevas
                     };
                     nuevoProd.PreciosPorProveedor[nombreProveedor] = item.Precio;
-                    if (item.PrecioBulto > 0) nuevoProd.PreciosBultoPorProveedor[nombreProveedor] = item.PrecioBulto;
 
                     catalogoMaestro.Add(nuevoProd);
                 }
@@ -181,27 +205,23 @@ namespace ComparadorPrecios
 
         private void CargarGrilla(string filtro = "")
         {
-            // PAUSAMOS EL DIBUJO DE LA PANTALLA (Acelera x10 la carga)
             dgvResultados.SuspendLayout();
 
+            // Limpiamos todo para rehacer las columnas con los nombres nuevos
+            dgvResultados.Columns.Clear();
             dgvResultados.Rows.Clear();
 
-            if (dgvResultados.Columns.Count == 0)
-            {
-                dgvResultados.Columns.Add("Producto", "Producto");
-                dgvResultados.Columns.Add("ProvA", "Prov A (Uni)");
-                dgvResultados.Columns.Add("BultoA", "Prov A (Bulto)");
-                dgvResultados.Columns.Add("ProvB", "Prov B (Uni)");
-                dgvResultados.Columns.Add("BultoB", "Prov B (Bulto)");
-                dgvResultados.Columns.Add("ProvC", "Prov C (Uni)");
-                dgvResultados.Columns.Add("BultoC", "Prov C (Bulto)");
-                dgvResultados.Columns.Add("Ganador", "Más Barato (Uni)");
+            // Columnas dinámicas usando los nombres guardados
+            dgvResultados.Columns.Add("Producto", "Producto");
+            dgvResultados.Columns.Add("Prov1", nombreProvA);
+            dgvResultados.Columns.Add("Prov2", nombreProvB);
+            dgvResultados.Columns.Add("Prov3", nombreProvC);
+            dgvResultados.Columns.Add("Ganador", "Más Barato");
 
-                dgvResultados.Columns["Producto"].Width = 320;
-                for (int i = 1; i < dgvResultados.Columns.Count; i++)
-                {
-                    dgvResultados.Columns[i].Width = 90;
-                }
+            dgvResultados.Columns["Producto"].Width = 320;
+            for (int i = 1; i < dgvResultados.Columns.Count; i++)
+            {
+                dgvResultados.Columns[i].Width = 110; // Un poco más anchas para que entre el nombre y el precio bien
             }
 
             foreach (var prod in catalogoMaestro)
@@ -210,45 +230,35 @@ namespace ComparadorPrecios
 
                 if (prod.PreciosPorProveedor.Count > 1)
                 {
-                    string pA = prod.PreciosPorProveedor.ContainsKey("Prov A") ? prod.PreciosPorProveedor["Prov A"].ToString("C2") : "-";
-                    string pB = prod.PreciosPorProveedor.ContainsKey("Prov B") ? prod.PreciosPorProveedor["Prov B"].ToString("C2") : "-";
-                    string pC = prod.PreciosPorProveedor.ContainsKey("Prov C") ? prod.PreciosPorProveedor["Prov C"].ToString("C2") : "-";
+                    // Agregamos el signo $ y forzamos formato numérico
+                    string pA = prod.PreciosPorProveedor.ContainsKey(nombreProvA) ? "$ " + prod.PreciosPorProveedor[nombreProvA].ToString("N2") : "-";
+                    string pB = prod.PreciosPorProveedor.ContainsKey(nombreProvB) ? "$ " + prod.PreciosPorProveedor[nombreProvB].ToString("N2") : "-";
+                    string pC = prod.PreciosPorProveedor.ContainsKey(nombreProvC) ? "$ " + prod.PreciosPorProveedor[nombreProvC].ToString("N2") : "-";
 
-                    string bA = prod.PreciosBultoPorProveedor.ContainsKey("Prov A") ? prod.PreciosBultoPorProveedor["Prov A"].ToString("C2") : "-";
-                    string bB = prod.PreciosBultoPorProveedor.ContainsKey("Prov B") ? prod.PreciosBultoPorProveedor["Prov B"].ToString("C2") : "-";
-                    string bC = prod.PreciosBultoPorProveedor.ContainsKey("Prov C") ? prod.PreciosBultoPorProveedor["Prov C"].ToString("C2") : "-";
-
-                    dgvResultados.Rows.Add(prod.NombreOriginal, pA, bA, pB, bB, pC, bC, prod.ObtenerProveedorMasBarato());
+                    dgvResultados.Rows.Add(prod.NombreOriginal, pA, pB, pC, prod.ObtenerProveedorMasBarato());
                 }
             }
 
-            // RETOMAMOS EL DIBUJO DE LA PANTALLA
             dgvResultados.ResumeLayout();
         }
 
         private void DgvResultados_CellFormatting(object sender, DataGridViewCellFormattingEventArgs e)
         {
-            // Solo nos interesan las columnas de precio unitario: 1 (Prov A), 3 (Prov B) y 5 (Prov C)
-            if (e.RowIndex >= 0 && (e.ColumnIndex == 1 || e.ColumnIndex == 3 || e.ColumnIndex == 5))
+            // Ahora los precios están en las columnas 1, 2 y 3 (ya no existen los bultos)
+            if (e.RowIndex >= 0 && (e.ColumnIndex == 1 || e.ColumnIndex == 2 || e.ColumnIndex == 3))
             {
                 var row = dgvResultados.Rows[e.RowIndex];
 
-                // Si la celda no está vacía y no tiene un guion
                 if (e.Value != null && e.Value.ToString() != "-")
                 {
-                    // 1. Buscamos el producto en nuestro catálogo en memoria
                     string nombreProducto = row.Cells[0].Value.ToString();
                     var producto = catalogoMaestro.Find(p => p.NombreOriginal == nombreProducto);
 
                     if (producto != null)
                     {
-                        // 2. Identificamos qué proveedor estamos mirando según la columna
-                        string proveedorCelda = "";
-                        if (e.ColumnIndex == 1) proveedorCelda = "Prov A";
-                        else if (e.ColumnIndex == 3) proveedorCelda = "Prov B";
-                        else if (e.ColumnIndex == 5) proveedorCelda = "Prov C";
+                        // Tomamos el nombre del proveedor del título de la columna (que ahora es dinámico)
+                        string proveedorCelda = dgvResultados.Columns[e.ColumnIndex].HeaderText;
 
-                        // 3. Comparamos el precio exacto en memoria, sin importar cómo se vea en pantalla
                         if (producto.PreciosPorProveedor.ContainsKey(proveedorCelda))
                         {
                             decimal precioDeEsteProveedor = producto.PreciosPorProveedor[proveedorCelda];
