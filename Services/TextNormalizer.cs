@@ -29,16 +29,37 @@ namespace ComparadorPrecios.Services
             return limpio;
         }
 
-        public bool SonMismoProducto(ProductoComparado p1, string nombreP2, string tamañoP2)
-        {
-            // Regla 1: Si los tamaños son distintos, NO es el mismo producto.
-            if (p1.Tamaño != tamañoP2) return false;
+        // 1. Prepara y limpia las palabras una sola vez
+public string[] ExtraerPalabrasClave(string nombre)
+{
+    return nombre.ToLower().Replace("-", " ").Replace(".", "").Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+}
 
-            // Regla 2: Fuzzy Matching. Comparamos los nombres limpios. (Umbral de 85%)
-            string nombreLimpioP2 = LimpiarNombre(nombreP2);
-            int similitud = Fuzz.TokenSetRatio(p1.NombreNormalizado, nombreLimpioP2);
-            
-            return similitud >= 85;
+// 2. Compara directamente los arreglos en memoria (¡Rapidísimo!)
+public bool SonMismoProducto(string[] palabras1, string[] palabras2)
+{
+    if (palabras1 == null || palabras2 == null) return false;
+
+    int coincidencias = 0;
+    foreach (var p1 in palabras1)
+    {
+        foreach (var p2 in palabras2)
+        {
+            if (p1 == p2 || (p1.Length >= 3 && p2.StartsWith(p1)) || (p2.Length >= 3 && p1.StartsWith(p2)))
+            {
+                coincidencias++;
+                break; 
+            }
         }
+    }
+
+    int palabrasMinimas = Math.Min(palabras1.Length, palabras2.Length);
+    if (palabrasMinimas > 0 && ((double)coincidencias / palabrasMinimas) >= 0.75) 
+    {
+        return true;
+    }
+
+    return false;
+}
     }
 }

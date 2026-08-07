@@ -8,10 +8,11 @@ namespace ComparadorPrecios.Models
         public string NombreOriginal { get; set; }
         public string NombreNormalizado { get; set; }
         public string Tamaño { get; set; }
-        
+
+        // Guardamos las palabras ya limpias para optimizar
+        public string[] PalabrasClave { get; set; }
+
         public Dictionary<string, decimal> PreciosPorProveedor { get; set; } = new Dictionary<string, decimal>();
-        
-        // NUEVO: Diccionario para guardar el precio por bulto cerrado
         public Dictionary<string, decimal> PreciosBultoPorProveedor { get; set; } = new Dictionary<string, decimal>();
 
         public string ObtenerProveedorMasBarato()

@@ -149,9 +149,13 @@ namespace ComparadorPrecios
             var items = excelService.LeerCatalogo(ruta);
             foreach (var item in items)
             {
+                // Extraemos las palabras UNA SOLA VEZ
+                string[] palabrasNuevas = normalizer.ExtraerPalabrasClave(item.Nombre);
                 string tamaño = normalizer.ExtraerTamaño(item.Nombre);
                 string nombreLimpio = normalizer.LimpiarNombre(item.Nombre);
-                var existente = catalogoMaestro.Find(p => normalizer.SonMismoProducto(p, item.Nombre, tamaño));
+
+                // Comparamos usando la memoria rápida
+                var existente = catalogoMaestro.Find(p => normalizer.SonMismoProducto(p.PalabrasClave, palabrasNuevas));
 
                 if (existente != null)
                 {
@@ -160,10 +164,16 @@ namespace ComparadorPrecios
                 }
                 else
                 {
-                    var nuevoProd = new ProductoComparado { NombreOriginal = item.Nombre, NombreNormalizado = nombreLimpio, Tamaño = tamaño };
+                    var nuevoProd = new ProductoComparado
+                    {
+                        NombreOriginal = item.Nombre,
+                        NombreNormalizado = nombreLimpio,
+                        Tamaño = tamaño,
+                        PalabrasClave = palabrasNuevas // Lo guardamos para el futuro
+                    };
                     nuevoProd.PreciosPorProveedor[nombreProveedor] = item.Precio;
                     if (item.PrecioBulto > 0) nuevoProd.PreciosBultoPorProveedor[nombreProveedor] = item.PrecioBulto;
-                    
+
                     catalogoMaestro.Add(nuevoProd);
                 }
             }
@@ -171,21 +181,24 @@ namespace ComparadorPrecios
 
         private void CargarGrilla(string filtro = "")
         {
+            // PAUSAMOS EL DIBUJO DE LA PANTALLA (Acelera x10 la carga)
+            dgvResultados.SuspendLayout();
+
             dgvResultados.Rows.Clear();
-            
+
             if (dgvResultados.Columns.Count == 0)
             {
-                dgvResultados.Columns.Add("Producto", "Producto"); // Columna 0
-                dgvResultados.Columns.Add("ProvA", "Prov A (Uni)"); // Columna 1
-                dgvResultados.Columns.Add("BultoA", "Prov A (Bulto)"); // Columna 2
-                dgvResultados.Columns.Add("ProvB", "Prov B (Uni)"); // Columna 3
-                dgvResultados.Columns.Add("BultoB", "Prov B (Bulto)"); // Columna 4
-                dgvResultados.Columns.Add("ProvC", "Prov C (Uni)"); // Columna 5
-                dgvResultados.Columns.Add("BultoC", "Prov C (Bulto)"); // Columna 6
-                dgvResultados.Columns.Add("Ganador", "Más Barato (Uni)"); // Columna 7
+                dgvResultados.Columns.Add("Producto", "Producto");
+                dgvResultados.Columns.Add("ProvA", "Prov A (Uni)");
+                dgvResultados.Columns.Add("BultoA", "Prov A (Bulto)");
+                dgvResultados.Columns.Add("ProvB", "Prov B (Uni)");
+                dgvResultados.Columns.Add("BultoB", "Prov B (Bulto)");
+                dgvResultados.Columns.Add("ProvC", "Prov C (Uni)");
+                dgvResultados.Columns.Add("BultoC", "Prov C (Bulto)");
+                dgvResultados.Columns.Add("Ganador", "Más Barato (Uni)");
 
-                dgvResultados.Columns["Producto"].Width = 320; 
-                for(int i = 1; i < dgvResultados.Columns.Count; i++) 
+                dgvResultados.Columns["Producto"].Width = 320;
+                for (int i = 1; i < dgvResultados.Columns.Count; i++)
                 {
                     dgvResultados.Columns[i].Width = 90;
                 }
@@ -195,7 +208,7 @@ namespace ComparadorPrecios
             {
                 if (!string.IsNullOrWhiteSpace(filtro) && !prod.NombreOriginal.ToLower().Contains(filtro.ToLower())) continue;
 
-                if (prod.PreciosPorProveedor.Count > 1) 
+                if (prod.PreciosPorProveedor.Count > 1)
                 {
                     string pA = prod.PreciosPorProveedor.ContainsKey("Prov A") ? prod.PreciosPorProveedor["Prov A"].ToString("C2") : "-";
                     string pB = prod.PreciosPorProveedor.ContainsKey("Prov B") ? prod.PreciosPorProveedor["Prov B"].ToString("C2") : "-";
@@ -208,25 +221,44 @@ namespace ComparadorPrecios
                     dgvResultados.Rows.Add(prod.NombreOriginal, pA, bA, pB, bB, pC, bC, prod.ObtenerProveedorMasBarato());
                 }
             }
+
+            // RETOMAMOS EL DIBUJO DE LA PANTALLA
+            dgvResultados.ResumeLayout();
         }
 
         private void DgvResultados_CellFormatting(object sender, DataGridViewCellFormattingEventArgs e)
         {
-            // Las columnas unitarias ahora son la 1 (Prov A), 3 (Prov B) y 5 (Prov C)
+            // Solo nos interesan las columnas de precio unitario: 1 (Prov A), 3 (Prov B) y 5 (Prov C)
             if (e.RowIndex >= 0 && (e.ColumnIndex == 1 || e.ColumnIndex == 3 || e.ColumnIndex == 5))
             {
                 var row = dgvResultados.Rows[e.RowIndex];
+
+                // Si la celda no está vacía y no tiene un guion
                 if (e.Value != null && e.Value.ToString() != "-")
                 {
-                    string valorLimpio = e.Value.ToString().Replace("$", "").Trim();
-                    if (decimal.TryParse(valorLimpio, out decimal precioCelda))
+                    // 1. Buscamos el producto en nuestro catálogo en memoria
+                    string nombreProducto = row.Cells[0].Value.ToString();
+                    var producto = catalogoMaestro.Find(p => p.NombreOriginal == nombreProducto);
+
+                    if (producto != null)
                     {
-                        var producto = catalogoMaestro.Find(p => p.NombreOriginal == row.Cells[0].Value.ToString());
-                        if (producto != null && precioCelda == producto.ObtenerPrecioMinimo())
+                        // 2. Identificamos qué proveedor estamos mirando según la columna
+                        string proveedorCelda = "";
+                        if (e.ColumnIndex == 1) proveedorCelda = "Prov A";
+                        else if (e.ColumnIndex == 3) proveedorCelda = "Prov B";
+                        else if (e.ColumnIndex == 5) proveedorCelda = "Prov C";
+
+                        // 3. Comparamos el precio exacto en memoria, sin importar cómo se vea en pantalla
+                        if (producto.PreciosPorProveedor.ContainsKey(proveedorCelda))
                         {
-                            e.CellStyle.BackColor = Color.LightGreen;
-                            e.CellStyle.ForeColor = Color.Black;
-                            e.CellStyle.Font = new Font(dgvResultados.Font, FontStyle.Bold);
+                            decimal precioDeEsteProveedor = producto.PreciosPorProveedor[proveedorCelda];
+
+                            if (precioDeEsteProveedor == producto.ObtenerPrecioMinimo())
+                            {
+                                e.CellStyle.BackColor = Color.LightGreen;
+                                e.CellStyle.ForeColor = Color.Black;
+                                e.CellStyle.Font = new Font(dgvResultados.Font, FontStyle.Bold);
+                            }
                         }
                     }
                 }
