@@ -1,79 +1,84 @@
 using ClosedXML.Excel;
 using System.Collections.Generic;
+using System.Globalization;
 
 namespace ComparadorPrecios.Services
 {
     public class ExcelService
     {
-        // Modificamos para que devuelva 3 datos: Nombre, Precio y PrecioBulto
-        public List<(string Nombre, decimal Precio, decimal PrecioBulto)> LeerCatalogo(string rutaArchivo)
+        public List<(string Nombre, decimal Precio)> LeerCatalogo(string rutaArchivo)
         {
-            var productos = new List<(string Nombre, decimal Precio, decimal PrecioBulto)>();
+            var productos = new List<(string Nombre, decimal Precio)>();
 
             using (var workbook = new XLWorkbook(rutaArchivo))
             {
                 var worksheet = workbook.Worksheet(1);
-                var filas = worksheet.RangeUsed().RowsUsed();
+                var filas = worksheet.RowsUsed();
 
                 int colNombre = -1;
                 int colPrecio = -1;
-                int colBulto = -1; // Nueva variable para ubicar la columna de bultos
                 bool encabezadosEncontrados = false;
 
                 foreach (var fila in filas)
                 {
+                    // 1. BUSCAMOS LOS ENCABEZADOS EN UNA MISMA FILA
                     if (!encabezadosEncontrados)
                     {
+                        int tempColNombre = -1;
+                        int tempColPrecio = -1;
+
                         foreach (var celda in fila.CellsUsed())
                         {
-                            string valor = celda.GetString().ToLower();
-                            
-                            if (valor.Contains("producto") || valor.Contains("descripcion") || valor.Contains("descripción"))
-                            {
-                                colNombre = celda.Address.ColumnNumber;
-                            }
-                            else if (valor.Contains("lista") || valor.Contains("precio"))
-                            {
-                                if (colPrecio == -1) colPrecio = celda.Address.ColumnNumber; 
-                            }
-                            // Detectamos la columna de unidades por bulto
-                            else if (valor.Contains("bulto"))
-                            {
-                                colBulto = celda.Address.ColumnNumber;
-                            }
+                            string valor = celda.GetString().ToLower().Trim();
+
+                            if (valor.Contains("producto") || valor.Contains("descripcion") || valor.Contains("descripción") || valor.Contains("nombre") || valor.Contains("articulo") || valor.Contains("detalle"))
+                                tempColNombre = celda.Address.ColumnNumber;
+
+                            else if (valor.Contains("lista") || valor.Contains("precio") || valor.Contains("pvp") || valor.Contains("valor") || valor.Contains("importe") || valor.Contains("costo") || valor.Contains("neto") || valor.Contains("final"))
+                                tempColPrecio = celda.Address.ColumnNumber;
                         }
 
-                        if (colNombre != -1 && colPrecio != -1)
+                        // Solo damos por válido si EN LA MISMA FILA encontró los dos títulos
+                        if (tempColNombre != -1 && tempColPrecio != -1)
                         {
+                            colNombre = tempColNombre;
+                            colPrecio = tempColPrecio;
                             encabezadosEncontrados = true;
-                            continue; 
                         }
-                        continue; 
+
+                        continue; // Pasamos a la siguiente fila (no leemos datos del título)
                     }
 
-                    string nombre = fila.Cell(colNombre).GetString();
-                    string precioString = fila.Cell(colPrecio).GetString();
-                    decimal precioBulto = 0;
+                    // 2. EXTRAEMOS LOS DATOS
+                    string nombre = fila.Cell(colNombre).GetString().Trim();
+                    if (string.IsNullOrWhiteSpace(nombre)) continue;
 
-                    if (decimal.TryParse(precioString, out decimal precio))
+                    decimal precio = 0m;
+                    var celPrecio = fila.Cell(colPrecio);
+
+                    if (celPrecio.DataType == XLDataType.Number)
                     {
-                        if (!string.IsNullOrWhiteSpace(nombre))
+                        try { precio = (decimal)celPrecio.GetDouble(); }
+                        catch { precio = 0m; }
+                    }
+                    else
+                    {
+                        string precioString = celPrecio.GetString().Replace("$", "").Replace(" ", "").Trim();
+                        if (!decimal.TryParse(precioString, NumberStyles.Any, CultureInfo.CurrentCulture, out precio)
+                            && !decimal.TryParse(precioString, NumberStyles.Any, new CultureInfo("es-AR"), out precio)
+                            && !decimal.TryParse(precioString, NumberStyles.Any, CultureInfo.InvariantCulture, out precio))
                         {
-                            // Si detectamos columna de bulto, intentamos extraer la cantidad y multiplicar
-                            if (colBulto != -1)
-                            {
-                                string bultoString = fila.Cell(colBulto).GetString();
-                                if (decimal.TryParse(bultoString, out decimal cantBulto) && cantBulto > 0)
-                                {
-                                    precioBulto = precio * cantBulto;
-                                }
-                            }
-
-                            productos.Add((nombre, precio, precioBulto));
+                            continue;
                         }
+                    }
+
+                    if (precio > 0)
+                    {
+                        productos.Add((nombre, precio));
                     }
                 }
             }
+
             return productos;
         }
     }
